@@ -15,7 +15,7 @@ def test_univariate_gaussian():
     X = np.random.normal(10, 1, 1000)
     estimator = UnivariateGaussian()
     estimator.fit(X)
-    print((estimator.mu_, estimator.var_))
+    print('(expectation, variance): ', (estimator.mu_, estimator.var_))
 
     # Question 2 - Empirically showing sample mean is consistent
     x_axis = np.linspace(10, 1000, 100)
@@ -57,8 +57,8 @@ def test_multivariate_gaussian():
     X = np.random.multivariate_normal(mu, sigma, 1000)
     estimator = MultivariateGaussian()
     estimator.fit(X)
-    print('estimator mean: ', estimator.mu_)
-    print('estimator covariance: ', estimator.cov_)
+    print('estimated mean: ', estimator.mu_)
+    print('estimated covariance: ', estimator.cov_)
 
     # Question 5 - Likelihood evaluation
     f1 = np.linspace(-10, 10, 200)
@@ -86,13 +86,13 @@ def test_multivariate_gaussian():
         colorscale='Viridis'))
     fig.update_layout(
         title='Question 5 - Log Likelihood Heatmap',
-        yaxis_title='y - f3 values',
-        xaxis_title='x - f1 values')
+        yaxis_title='y - f1 values',
+        xaxis_title='x - f3 values')
     fig.show()
 
     # Question 6 - Maximum likelihood
     # print(np.amax(z))
-    print((max_i.round(4), max_j.round(4)))
+    print('(f1 value, f3 value): ', (max_i.round(4), max_j.round(4)))
 
 
 if __name__ == '__main__':
