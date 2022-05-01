@@ -48,7 +48,18 @@ class AdaBoost(BaseEstimator):
         y : ndarray of shape (n_samples, )
             Responses of input data to fit to
         """
-        raise NotImplementedError()
+        self.D_ = np.asarray([1 / X.size for _ in range(X.size)])
+        for i in range(self.iterations_):
+            learner = self.wl_()
+            learner.fit(X, y)
+            y_pred = learner.predict(X)
+            cmp_list = y != y_pred
+            eps = np.sum([self.D_[i] for i in range(X.size) if cmp_list[i]])
+            self.weights_[i] = 0.5 * np.log(1 / eps - 1)
+            exponent = -self.weights_[i] * np.dot(y, y_pred)
+            self.D_ *= np.exp(exponent)
+            self.D_ /= np.sum(self.D_)
+            self.models_.append(learner)
 
     def _predict(self, X):
         """
