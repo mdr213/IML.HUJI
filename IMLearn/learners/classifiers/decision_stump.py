@@ -40,19 +40,12 @@ class DecisionStump(BaseEstimator):
         y : ndarray of shape (n_samples, )
             Responses of input data to fit to
         """
-        m, d = X.shape
-        loss_dict = dict()
-        for feat in range(d):
-            plus_thr, plus_err = self._find_threshold(X[:, feat], y, 1)
-            minus_thr, minus_err = self._find_threshold(X[:, feat], y, -1)
-            if plus_err > minus_err:
-                loss_dict[plus_err] = [feat, plus_thr, 1]
-            else:
-                loss_dict[minus_err] = [feat, minus_thr, -1]
-        minn = min(loss_dict)
-        self.j_ = loss_dict[minn][0]
-        self.threshold_ = loss_dict[minn][1]
-        self.sign_ = loss_dict[minn][2]
+        thr_err = np.inf
+        for sign, j in product([-1, 1], range(X.shape[1])):
+            thr, temp_err = self._find_threshold(X[:, j], y, sign)
+            if temp_err < thr_err:
+                self.sign_, self.threshold_, self.j_ = sign, thr, j
+                thr_err = temp_err
 
     def _predict(self, X: np.ndarray) -> np.ndarray:
         """
@@ -76,10 +69,7 @@ class DecisionStump(BaseEstimator):
         Feature values strictly below threshold are predicted as `-sign` whereas values which equal
         to or above the threshold are predicted as `sign`
         """
-        # y_pred = np.zeros(X.size)
-        y_pred = np.asarray([self.sign_ if x >= self.threshold_ else -self.sign_ for x in X])
-        # for i in range(X.size):
-        #     y_pred[i] = self.sign_ if X[i][self.j_] >= self.threshold_ else -self.sign_
+        y_pred = self.sign_ * ((X[:, self.j_] >= self.threshold_) * 2 - 1)
         return y_pred
 
     def _find_threshold(self, values: np.ndarray, labels: np.ndarray, sign: int) -> Tuple[float, float]:
@@ -112,17 +102,17 @@ class DecisionStump(BaseEstimator):
         For every tested threshold, values strictly below threshold are predicted as `-sign` whereas values
         which equal to or above the threshold are predicted as `sign`
         """
-        thr_err = 1.0
-        thr = 0.0
-        y_temp = np.zeros(values.size)
-        for i in range(values.size):
-            for j in range(values.size):
-                y_temp[j] = sign if values[j] >= values[i] else -sign
-            temp_err = misclassification_error(labels, y_temp, True)
-            if temp_err < thr_err:
-                thr = values[i]
-                thr_err = temp_err
-        return thr, thr_err
+        sort_idx = np.argsort(values)
+        values, labels = values[sort_idx], labels[sort_idx]
+        # calculating the loss according to sum(D) if y == y_pred
+        temp_err = np.sum(np.abs(labels[np.sign(labels) != sign]))
+        # putting the threshold in between each two values in order to find
+        # the best threshold
+        temp_thr = np.concatenate([[-np.inf], (values[1:] + values[:-1]) / 2, [np.inf]])
+        # making a loss loss according to different predictions
+        losses = np.append(temp_err, temp_err + np.cumsum(labels * sign))
+        minimal_loss = np.argmin(losses)
+        return temp_thr[minimal_loss], losses[minimal_loss]
 
     def _loss(self, X: np.ndarray, y: np.ndarray) -> float:
         """
