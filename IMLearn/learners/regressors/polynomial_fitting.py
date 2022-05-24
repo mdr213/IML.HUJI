@@ -51,7 +51,7 @@ class PolynomialFitting(BaseEstimator):
         responses : ndarray of shape (n_samples, )
             Predicted responses of given samples
         """
-        return self.lin.predict(X)
+        return self.lin.predict(self.__transform(X))
 
     def _loss(self, X: np.ndarray, y: np.ndarray) -> float:
         """
@@ -86,4 +86,6 @@ class PolynomialFitting(BaseEstimator):
         transformed: ndarray of shape (n_samples, k+1)
             Vandermonde matrix of given samples up to degree k
         """
+        if X.ndim > 1:
+            X = np.concatenate(X)
         return np.vander(X, self.degree + 1, increasing=True)
