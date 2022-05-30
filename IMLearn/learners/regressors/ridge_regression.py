@@ -1,7 +1,6 @@
 from __future__ import annotations
 from typing import NoReturn
 from ...base import BaseEstimator
-from numpy.linalg import svd
 import numpy as np
 
 
@@ -62,11 +61,14 @@ class RidgeRegression(BaseEstimator):
         """
         if self.include_intercept_:
             X = np.insert(X, 0, 1, axis=1)
-        U, sig, V = svd(X, full_matrices=False)
-        sig = np.diag(sig)
-        for i in range(sig.shape[0]):
-            sig[i][i] = sig[i][i] / (np.square(sig[i][i]) + self.lam_)
-        self.coefs_ = V.T @ sig @ U.T @ y
+        # U, sig, V = np.linalg.svd(X, full_matrices=False)
+        # sig = np.diag(sig)
+        # for i in range(sig.shape[0]):
+        #     sig[i][i] = sig[i][i] / (np.square(sig[i][i]) + self.lam_)
+        # self.coefs_ = V.T @ sig @ U.T @ y
+        lam_i = np.diag(np.full((X.shape[1],), self.lam_))
+        inv = np.linalg.inv(X.T @ X + lam_i)
+        self.coefs_ = inv @ X.T @ y
 
     def _predict(self, X: np.ndarray) -> np.ndarray:
         """
