@@ -33,7 +33,8 @@ class L2(BaseModule):
         output: ndarray of shape (1,)
             Value of function at point self.weights
         """
-        raise NotImplementedError()
+        return np.square(np.linalg.norm(self.weights, 2))
+        # return np.sum(self.weights ** 2)
 
     def compute_jacobian(self, **kwargs) -> np.ndarray:
         """
@@ -49,7 +50,7 @@ class L2(BaseModule):
         output: ndarray of shape (n_in,)
             L2 derivative with respect to self.weights at point self.weights
         """
-        raise NotImplementedError()
+        return 2 * self.weights
 
 
 class L1(BaseModule):
@@ -78,7 +79,8 @@ class L1(BaseModule):
         output: ndarray of shape (1,)
             Value of function at point self.weights
         """
-        raise NotImplementedError()
+        return np.linalg.norm(self.weights, 1)
+        # return np.sum(np.abs(self.weights))
 
     def compute_jacobian(self, **kwargs) -> np.ndarray:
         """
@@ -94,7 +96,7 @@ class L1(BaseModule):
         output: ndarray of shape (n_in,)
             L1 derivative with respect to self.weights at point self.weights
         """
-        raise NotImplementedError()
+        return np.sign(self.weights)
 
 
 class LogisticModule(BaseModule):
@@ -131,7 +133,10 @@ class LogisticModule(BaseModule):
         output: ndarray of shape (1,)
             Value of function at point self.weights
         """
-        raise NotImplementedError()
+        prod = np.inner(X, self.weights)
+        sigmoid = 1 / (1 + np.exp(-prod))
+        to_sum = y * prod - np.log(sigmoid)
+        return - (1 / X.shape[0]) * np.sum(to_sum)
 
     def compute_jacobian(self, X: np.ndarray, y: np.ndarray, **kwargs) -> np.ndarray:
         """
@@ -150,7 +155,12 @@ class LogisticModule(BaseModule):
         output: ndarray of shape (n_features,)
             Derivative of function with respect to self.weights at point self.weights
         """
-        raise NotImplementedError()
+
+        total = 0
+        for i in range(X.shape[0]):
+            exp = np.exp(np.inner(X[i], self.weights)) / (1 + np.exp(np.inner(X[i], self.weights)))
+            total += (y[i] * self.weights - self.weights * exp)
+        return total / X.shape[0]
 
 
 class RegularizedModule(BaseModule):
@@ -207,7 +217,10 @@ class RegularizedModule(BaseModule):
         output: ndarray of shape (1,)
             Value of function at point self.weights
         """
-        raise NotImplementedError()
+        # todo what to do with intercept and w
+        # self.fidelity_module_.weights = self.weights
+        return self.fidelity_module_.compute_output(kwargs=kwargs) + \
+               self.lam_ * self.regularization_module_.compute_output(kwargs=kwargs)
 
     def compute_jacobian(self, **kwargs) -> np.ndarray:
         """
@@ -223,7 +236,8 @@ class RegularizedModule(BaseModule):
         output: ndarray of shape (n_in,)
             Derivative with respect to self.weights at point self.weights
         """
-        raise NotImplementedError()
+        return self.fidelity_module_.compute_jacobian(kwargs=kwargs) + \
+               self.lam_ * self.regularization_module_.compute_jacobian(kwargs=kwargs)
 
     @property
     def weights(self):
