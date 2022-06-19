@@ -122,48 +122,20 @@ class GradientDescent:
         w = f.weights
         w_lst = [w]
         if self.out_type_ == "best":
-            erm_lst = [f.compute_output(X, y)]
+            erm_lst = [f.compute_output(X=X, y=y)]
         output_vector_dict = {"last": lambda x: x[-1],
                               "best": lambda x: x[np.argmin(erm_lst)],
                               "average": lambda x: np.sum(x) / len(x)}
         for t in range(self.max_iter_):
-            w_t = w - self.learning_rate_.lr_step(t=t) * f.compute_jacobian(x=X, y=y)
+            w_t = w - self.learning_rate_.lr_step(t=t) * f.compute_jacobian(X=X, y=y)
             w_lst.append(w_t)
-            f.weights = np.copy(w_t)  # todo maybe not needed
+            f.weights = w_t
             if self.out_type_ == "best":
                 erm_lst.append(f.compute_output(x=X, y=y))
             norm = np.linalg.norm(w_t - w)
-            self.callback_(self, w_t, f.compute_output(x=X, y=y), f.compute_jacobian(x=X, y=y), t, self.learning_rate_.lr_step(t=t), norm)
-            w = np.copy(w_t)
+            self.callback_(solver=self, weights=w_t, val=f.compute_output(X=X, y=y),
+                           grad=f.compute_jacobian(X=X, y=y), t=t, eta=self.learning_rate_.lr_step(t=t), delta=norm)
+            w = w_t
             if norm < self.tol_:
                 break
         return output_vector_dict[self.out_type_](w_lst)
-        # best_weight = sum_weights = np.copy(f.weights)
-        # best_val = np.inf
-        # iter_counter = 0
-        #
-        # for iter_ in range(self.max_iter_):
-        #     curr_val = f.compute_output(X=X, y=y)
-        #     prev_weights = np.copy(f.weights_)
-        #     grad = f.compute_jacobian(X=X, y=y)
-        #     eta = self.learning_rate_.lr_step(t=iter_)
-        #     f.weights_ -= (eta * grad)
-        #     print("weight diffrences: ",np.sum(np.abs(f.weights_ - prev_weights)))
-        #     delta = np.linalg.norm(f.weights_ - prev_weights)
-        #
-        #     self.callback_(self, weights=prev_weights, val=curr_val, grad=grad, t=iter_, eta=eta, delta=delta)
-        #     if curr_val < best_val:
-        #         best_val = curr_val
-        #         best_weight = prev_weights
-        #     sum_weights = np.add(sum_weights, f.weights_)
-        #     if delta <= self.tol_:
-        #         break
-        #     iter_counter += 1
-        #
-        # print(f" the iteration counter is {iter_counter}")
-        # if self.out_type_ == 'last':
-        #     return f.weights_
-        # elif self.out_type_ == 'best':
-        #     return best_weight
-        # else:
-        #     return sum_weights / iter_counter

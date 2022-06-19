@@ -4,17 +4,17 @@ from typing import Tuple, List, Callable, Type
 from itertools import product
 
 from IMLearn import BaseModule
+from IMLearn.model_selection.cross_validate import cross_validate
 from IMLearn.desent_methods import GradientDescent, FixedLR, ExponentialLR
 from IMLearn.desent_methods.modules import L1, L2
 from IMLearn.learners.classifiers.logistic_regression import LogisticRegression
 from IMLearn.utils import split_train_test
+from IMLearn.metrics import loss_functions
 from utils import *
 from sklearn.metrics import roc_curve, auc
 pio.renderers.default = "browser"
 
 import plotly.graph_objects as go
-
-L = [L1, L2]
 
 
 def plot_descent_path(module: Type[BaseModule],
@@ -93,40 +93,42 @@ def get_gd_state_recorder_callback() -> Tuple[Callable[[], None], List[np.ndarra
 
 def compare_fixed_learning_rates(init: np.ndarray = np.array([np.sqrt(2), np.e / 3]),
                                  etas: Tuple[float] = (1, .1, .01, .001)):
-    for eta, l in product(etas, L):
+    l_dict = {L1: "L1", L2: "L2"}
+    for eta, l in product(etas, l_dict.keys()):
         callback, values, weights, norms = get_gd_state_recorder_callback()
         gd = GradientDescent(FixedLR(eta), callback=callback)
-        gd.fit(l(np.copy(init)), None, None)
-        # plot_descent_path(l, np.asarray([np.linspace(0, len(values) - 1, len(values)), np.asarray(values)]), f'{eta} {l}').add_trace(
-        #     go.Scatter(x=np.arange(len(values)), y=values, mode="lines")
-        # ).show()
-        plot_descent_path(l, np.asarray(weights), f'{eta} {l}').show()
-        # break
-        norm_fig = go.Figure(go.Scatter(x=np.linspace(0, len(norms) - 1, len(norms)), y=norms, mode="lines+markers"))
-        norm_fig.show()
+        gd.fit(l(init), None, None)
+        fig = plot_descent_path(l, np.asarray(weights), f'with eta {eta} on {l_dict[l]} module.')
+        norm_fig = go.Figure(go.Scatter(x=np.linspace(0, len(norms) - 1, len(norms)), y=norms, mode="lines+markers")) \
+            .update_layout(title=f'Convergence rate with eta {eta} on {l_dict[l]} module.')
+        if eta == .01:
+            fig.show()
+            norm_fig.show()
+            print(f'Minimal loss with eta {eta} on {l_dict[l]} module is: {np.round(np.min(values), 2)}.')
 
 
 def compare_exponential_decay_rates(init: np.ndarray = np.array([np.sqrt(2), np.e / 3]),
                                     eta: float = .1,
                                     gammas: Tuple[float] = (.9, .95, .99, 1)):
     # Optimize the L1 objective using different decay-rate values of the exponentially decaying learning rate
-    fig = go.Figure()
+    fig = go.Figure().update_layout(title='Convergence rate of varius decay rates')
     for gamma in gammas:
         callback, values, weights, norms = get_gd_state_recorder_callback()
         gd = GradientDescent(ExponentialLR(eta, gamma), callback=callback)
-        gd.fit(L1(np.copy(init)), None, None)
-        fig.add_trace(go.Scatter(x=np.linspace(0, len(norms) - 1, len(norms)), y=norms, mode="lines+markers"))
-    # fig.show()
+        gd.fit(L1(init), None, None)
+        fig.add_trace(go.Scatter(x=np.linspace(0, len(norms) - 1, len(norms)), y=norms, mode="lines+markers", name=f'decay rate: {gamma}'))
 
     # Plot algorithm's convergence for the different values of gamma
-    # raise NotImplementedError()
+    fig.show()
 
     # Plot descent path for gamma=0.95
-    for l in [L1, L2]:
+    l_dict = {L1: "L1", L2: "L2"}
+    for l in l_dict.keys():
         callback, values, weights, norms = get_gd_state_recorder_callback()
         gd = GradientDescent(ExponentialLR(eta, gammas[1]), callback=callback)
-        gd.fit(l(np.copy(init)), None, None)
-        plot_descent_path(l, np.asarray(weights), f'{eta} {l}').show()
+        gd.fit(l(init), None, None)
+        plot_descent_path(l, np.asarray(weights), f'with eta {eta} on {l_dict[l]} module.').show()
+        print(f'Minimal norm on {l_dict[l]} module is: {np.min(norms)}.')
 
 
 def load_data(path: str = "../datasets/SAheart.data", train_portion: float = .8) -> \
@@ -167,8 +169,11 @@ def fit_logistic_regression():
 
     # Plotting convergence rate of logistic regression over SA heart disease data
     lr = LogisticRegression()
-    y_prob = lr.predict_proba(X_train)
-    fpr, tpr, thresholds = roc_curve(y_train, y_prob)
+    lr.fit(np.asarray(X_train), np.asarray(y_train))
+    y_prob = lr.predict_proba(np.asarray(X_train))
+    fpr, tpr, thresholds = roc_curve(np.asarray(y_train), y_prob)
+    best_alpha = np.round(thresholds[np.argmax(tpr - fpr)], 2)
+    print(f"Best alpha is: {best_alpha}")
 
     go.Figure(
         data=[go.Scatter(x=[0, 1], y=[0, 1], mode="lines",
@@ -181,15 +186,28 @@ def fit_logistic_regression():
         layout=go.Layout(
             title=rf"$\text{{ROC Curve Of Fitted Model - AUC}}={auc(fpr, tpr):.6f}$",
             xaxis=dict(title=r"$\text{False Positive Rate (FPR)}$"),
-            yaxis=dict(title=r"$\text{True Positive Rate (TPR)}$")))
+            yaxis=dict(title=r"$\text{True Positive Rate (TPR)}$"))).show()
 
     # Fitting l1- and l2-regularized logistic regression models, using cross-validation to specify values
     # of regularization parameter
-    raise NotImplementedError()
+    lambdas = [0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1]
+    for l in ["l1", "l2"]:
+        train_lst = []
+        val_lst = []
+        for lam in lambdas:
+            lr = LogisticRegression(penalty=l, lam=lam)
+            train, val = cross_validate(lr, np.asarray(X_train), np.asarray(y_train), loss_functions.misclassification_error)
+            train_lst.append(train)
+            val_lst.append(val)
+        best_lambda = lambdas[np.argmin(val_lst)]
+        best_lr = LogisticRegression(penalty=l, lam=best_lambda)
+        best_lr.fit(np.asarray(X_train), np.asarray(y_train))
+        error = best_lr.loss(np.asarray(X_test), np.asarray(y_test))
+        print(f"With {l} module, best lambda was: {best_lambda} and the error was: {error}")
 
 
 if __name__ == '__main__':
     np.random.seed(0)
-    # compare_fixed_learning_rates()
-    # compare_exponential_decay_rates()
+    compare_fixed_learning_rates()
+    compare_exponential_decay_rates()
     fit_logistic_regression()
